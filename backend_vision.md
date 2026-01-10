@@ -1,4 +1,4 @@
-# Project: AccessiVision (Backend Architecture)
+# Project: AccessiVision (name tbd) (Backend Architecture)
 **Role:** AI Backend Architect
 **Goal:** Build a FastAPI service that performs a "Spatial Audit" on real estate photos using Gemini 1.5 Pro and generates renovated visualizations using Stability AI.
 

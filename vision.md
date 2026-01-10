@@ -1,4 +1,4 @@
-# Project: AccessiVision (Hackathon Spec)
+# Project: AccessiVision (name tbd) (Hackathon Spec)
 **Goal:** A real estate accessibility visualizer.
 **Architecture:** Monorepo (FastAPI Backend + Next.js Frontend).
 

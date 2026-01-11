@@ -92,24 +92,24 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
   return (
     <div className="space-y-6">
       {/* Paste a new link */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="bg-white rounded-lg p-4 shadow-md border border-[#E8F4FD]">
         <form onSubmit={handleNewLinkSubmit} className="flex gap-2">
           <Input
             type="url"
             value={newLink}
             onChange={(e) => setNewLink(e.target.value)}
-            placeholder="Paste a new link"
+            placeholder="Enter new property URL"
             className="flex-1 text-base"
           />
-          <Button type="submit" size="lg" className="bg-blue-600">
+          <Button type="submit" size="lg" className="bg-[#4A90E2] hover:bg-[#2C5F8D]">
             <Link2 className="h-5 w-5" />
           </Button>
         </form>
       </div>
 
       {/* Accessibility Score - Circular Display */}
-      <div className="bg-white rounded-lg p-6 shadow-sm">
-        <h2 className="font-heading text-xl font-bold text-slate-900 mb-4 text-center">
+      <div className="bg-white rounded-lg p-6 shadow-md border border-[#E8F4FD]">
+        <h2 className="text-xl font-bold text-[#1E3A5F] mb-4 text-center">
           Accessibility Score
         </h2>
         <div className="flex justify-center mb-4">
@@ -121,16 +121,16 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
                 cx={circleCenter}
                 cy={circleCenter}
                 r={radius}
-                stroke="#e2e8f0"
+                stroke="#E8F4FD"
                 strokeWidth="10"
                 fill="none"
               />
-              {/* Current score circle (blue) - animates first */}
+              {/* Current score circle (light blue) - animates first */}
               <circle
                 cx={circleCenter}
                 cy={circleCenter}
                 r={radius}
-                stroke="#2563eb"
+                stroke="#6BA3E8"
                 strokeWidth="10"
                 fill="none"
                 strokeDasharray={scoreCircumference}
@@ -138,13 +138,13 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
                 className="transition-all duration-1000 ease-out"
                 strokeLinecap="round"
               />
-              {/* Potential score circle (green) - animates after current score */}
+              {/* Potential score circle (darker blue) - animates after current score */}
               {analysis.accessibilityScore.potential && potentialScore > currentScore && (
                 <circle
                   cx={circleCenter}
                   cy={circleCenter}
                   r={radius}
-                  stroke="#22c55e"
+                  stroke="#4A90E2"
                   strokeWidth="10"
                   fill="none"
                   strokeDasharray={scoreCircumference}
@@ -156,14 +156,14 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <div className="text-3xl font-bold text-slate-900 transition-all duration-1000 ease-out">
+                <div className="text-3xl font-bold text-[#1E3A5F] transition-all duration-1000 ease-out">
                   {Math.round(animatedScore)}%
                 </div>
                 {analysis.accessibilityScore.potential && potentialScore > currentScore && showPotential && (
                   <div className="text-sm font-semibold mt-1 animate-in fade-in duration-500">
-                    <span className="text-slate-900">{currentScore}%</span>
-                    <span className="text-slate-600 mx-1">→</span>
-                    <span className="text-green-600">{potentialScore}%</span>
+                    <span className="text-[#1E3A5F]">{currentScore}%</span>
+                    <span className="text-[#6BA3E8] mx-1">→</span>
+                    <span className="text-[#4A90E2]">{potentialScore}%</span>
                   </div>
                 )}
               </div>
@@ -173,36 +173,36 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
       </div>
 
       {/* Cost Breakdown */}
-      <div className="bg-white rounded-lg p-6 shadow-sm space-y-4">
-        <h2 className="font-heading text-xl font-bold text-slate-900 mb-4">
+      <div className="bg-white rounded-lg p-6 shadow-md border border-[#E8F4FD] space-y-4">
+        <h2 className="text-xl font-bold text-[#1E3A5F] mb-4">
           Cost Breakdown
         </h2>
         
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-slate-600">
+            <span className="text-base font-semibold text-[#2C5F8D]">
               Original Cost:
             </span>
-            <span className="text-xl font-bold text-slate-900">
+            <span className="text-xl font-bold text-[#1E3A5F]">
               ${analysis.originalPrice.toLocaleString()}
             </span>
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-slate-600">
-              Estimated Renov.:
+            <span className="text-base font-semibold text-[#2C5F8D]">
+              Estimated Renovation:
             </span>
-            <span className="text-xl font-bold text-blue-600">
+            <span className="text-xl font-bold text-[#4A90E2]">
               +${analysis.renovationCost.toLocaleString()}
             </span>
           </div>
 
-          <div className="border-t border-slate-300 pt-3 mt-3">
+          <div className="border-t border-[#6BA3E8] pt-3 mt-3">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-slate-900">
+              <span className="text-lg font-bold text-[#1E3A5F]">
                 Total Cost:
               </span>
-              <span className="text-2xl font-bold text-slate-900">
+              <span className="text-2xl font-bold text-[#1E3A5F]">
                 ${totalCost.toLocaleString()}
               </span>
             </div>
@@ -212,37 +212,37 @@ export default function PropertySidebar({ analysis }: PropertySidebarProps) {
 
       {/* Additional Info */}
       {analysis.additionalInfo && (
-        <div className="bg-white rounded-lg p-6 shadow-sm space-y-4">
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-4">
-            Additional Info
+        <div className="bg-white rounded-lg p-6 shadow-md border border-[#E8F4FD] space-y-4">
+          <h2 className="text-xl font-bold text-[#1E3A5F] mb-4">
+            Additional Information
           </h2>
           
           <div className="space-y-3 text-base">
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Noise level:</span>
-              <span className="text-slate-900">{analysis.additionalInfo.noiseLevel}</span>
+              <span className="font-semibold text-[#2C5F8D]">Noise level:</span>
+              <span className="text-[#1E3A5F]">{analysis.additionalInfo.noiseLevel}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Average age:</span>
-              <span className="text-slate-900">{analysis.additionalInfo.averageAge}</span>
+              <span className="font-semibold text-[#2C5F8D]">Average age:</span>
+              <span className="text-[#1E3A5F]">{analysis.additionalInfo.averageAge}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Air quality:</span>
-              <span className="text-slate-900">{analysis.additionalInfo.airQuality}</span>
+              <span className="font-semibold text-[#2C5F8D]">Air quality:</span>
+              <span className="text-[#1E3A5F]">{analysis.additionalInfo.airQuality}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Elevation:</span>
-              <span className="text-slate-900">{analysis.additionalInfo.elevation}</span>
+              <span className="font-semibold text-[#2C5F8D]">Elevation:</span>
+              <span className="text-[#1E3A5F]">{analysis.additionalInfo.elevation}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Safety Index:</span>
-              <span className="text-slate-900">{analysis.additionalInfo.safetyIndex}</span>
+              <span className="font-semibold text-[#2C5F8D]">Safety Index:</span>
+              <span className="text-[#1E3A5F]">{analysis.additionalInfo.safetyIndex}</span>
             </div>
-            <div className="pt-3 border-t border-slate-200">
-              <span className="font-semibold text-slate-600 block mb-2">
+            <div className="pt-3 border-t border-[#6BA3E8]">
+              <span className="font-semibold text-[#2C5F8D] block mb-2">
                 Local amenities:
               </span>
-              <ul className="space-y-1 text-slate-700">
+              <ul className="space-y-1 text-[#1E3A5F]">
                 {analysis.additionalInfo.localAmenities.map((amenity, index) => (
                   <li key={index} className="text-sm">
                     • {amenity}

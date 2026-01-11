@@ -1,23 +1,17 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import Header from "@/components/landing/Header";
 
-// 1. Configure the Body Font (Standard text)
+// Configure Inter font for professional typography
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-// 2. Configure the Heading Font (Large, readable titles)
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-heading",
+  variable: "--font-inter",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "ForeverHome - Aging in Place",
+  title: "hearth - Accessibility Analysis",
   description: "Visualize accessibility renovations for your future home.",
 };
 
@@ -29,12 +23,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        // 3. Apply the font variables - Inter for body, Plus Jakarta Sans for headings
-        className={`${inter.variable} ${jakarta.variable} antialiased bg-[#FAFAF9] text-slate-900`}
+        className={`${inter.variable} antialiased bg-[#F0F7FF] text-slate-800`}
         style={{
-          fontFamily: "var(--font-body)",
+          fontFamily: "var(--font-inter), Inter, sans-serif",
         }}
       >
+        <Header />
         {children}
       </body>
     </html>

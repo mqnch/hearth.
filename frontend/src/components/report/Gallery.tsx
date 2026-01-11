@@ -15,8 +15,8 @@ export default function Gallery({
   onImageSelect 
 }: GalleryProps) {
   return (
-    <div className="bg-white rounded-lg p-6 shadow-sm">
-      <h2 className="font-heading text-2xl font-bold text-slate-900 mb-4">
+    <div className="bg-white rounded-lg p-6 shadow-md border border-[#E8F4FD]">
+      <h2 className="text-2xl font-bold text-[#1E3A5F] mb-4">
         Image Gallery
       </h2>
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
@@ -26,8 +26,8 @@ export default function Gallery({
             onClick={() => onImageSelect(index)}
             className={`flex-shrink-0 rounded-lg overflow-hidden border-4 transition-all ${
               selectedIndex === index
-                ? "border-blue-600 scale-105 shadow-lg"
-                : "border-transparent hover:border-slate-300"
+                ? "border-[#4A90E2] scale-105 shadow-lg"
+                : "border-transparent hover:border-[#6BA3E8]"
             }`}
           >
             <div className="relative w-32 h-24">

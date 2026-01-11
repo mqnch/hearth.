@@ -30,27 +30,22 @@ export default function TransformationViewer({
   const afterImage = renovatedImageData || mainImage.renovated;
 
   return (
-    <div className="bg-white rounded-lg p-6 shadow-sm space-y-6">
-      {/* Title - Large, Centered */}
+    <div className="bg-white rounded-lg p-6 shadow-md border border-[#E8F4FD] space-y-6">
+      {/* Title - Professional, Centered */}
       <div className="text-center">
-        <h1 className="font-heading text-4xl font-bold text-slate-900 sm:text-5xl">
+        <h1 className="text-2xl font-bold text-[#1E3A5F] sm:text-3xl">
           {analysis.address}
         </h1>
-        {analysis.features[0] && (
-          <p className="mt-2 text-lg text-slate-600">
-            {analysis.features[0].name}
-          </p>
-        )}
       </div>
 
       {/* Before & After Comparison Slider */}
-      <div className="relative w-full h-[600px] rounded-lg overflow-hidden border-4 border-slate-200">
+      <div className="relative w-full h-[400px] rounded-lg overflow-hidden border-4 border-[#6BA3E8]">
         <ReactCompareSlider
           itemOne={
             <div className="relative w-full h-full">
               {sliderPosition > 0 && (
-                <div className="absolute top-4 left-4 z-20 bg-white/90 px-4 py-2 rounded-lg shadow-sm">
-                  <span className="font-heading text-xl font-bold text-slate-900">
+                <div className="absolute top-4 left-4 z-20 bg-white/95 px-4 py-2 rounded-lg shadow-md border border-[#6BA3E8]">
+                  <span className="text-xl font-bold text-[#1E3A5F]">
                     BEFORE
                   </span>
                 </div>
@@ -65,8 +60,8 @@ export default function TransformationViewer({
           itemTwo={
             <div className="relative w-full h-full">
               {sliderPosition < 100 && (
-                <div className="absolute top-4 right-4 z-20 bg-white/90 px-4 py-2 rounded-lg shadow-sm">
-                  <span className="font-heading text-xl font-bold text-slate-900">
+                <div className="absolute top-4 right-4 z-20 bg-white/95 px-4 py-2 rounded-lg shadow-md border border-[#6BA3E8]">
+                  <span className="text-xl font-bold text-[#1E3A5F]">
                     AFTER
                   </span>
                 </div>
@@ -84,13 +79,25 @@ export default function TransformationViewer({
         />
       </div>
 
-      {/* Renovation Details */}
+      {/* Problem Section */}
       {analysis.features[0] && (
-        <div className="bg-slate-50 rounded-lg p-4">
-          <h3 className="font-heading text-lg font-semibold text-slate-900 mb-2">
-            Recommended Renovation
+        <div className="bg-white rounded-sm p-6 border border-[#6BA3E8] shadow-sm">
+          <h3 className="text-l font-bold text-[#1E3A5F] mb-2">
+            Problem
           </h3>
-          <p className="text-slate-700">
+          <p className="text-[#2C5F8D] text-base leading-relaxed">
+            {analysis.features[0].name}
+          </p>
+        </div>
+      )}
+
+      {/* Solution Section */}
+      {analysis.features[0] && (
+        <div className="bg-[#E8F4FD] rounded-sm p-6 border border-[#6BA3E8]">
+          <h3 className="text-l font-bold text-[#1E3A5F] mb-2">
+            Solution
+          </h3>
+          <p className="text-[#2C5F8D] text-base leading-relaxed">
             {analysis.features[0].description}
           </p>
         </div>

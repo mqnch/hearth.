@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 import google.genai as genai_client  # For all Gemini operations
 from google.genai import types as genai_types
 
+# Import prompts
+from prompts import (
+    AUDIT_PROMPT,
+    get_structural_renovation_prompt,
+    get_non_structural_renovation_prompt,
+)
+
 # Load API Keys
 load_dotenv()
 
@@ -299,19 +306,8 @@ def audit_room(image_url: str) -> Dict[str, Any]:
         img = Image.open(BytesIO(image_data))
         mime_type = f"image/{img.format.lower()}" if img.format else "image/jpeg"
 
-        prompt = """You are an expert Accessibility Architect (AODA compliant). Analyze this real estate photo.
-Identify the single most critical accessibility barrier (e.g., stairs, narrow doorway, high tub, bathroom vanity).
-Return a strict JSON object with these keys:
-- barrier_detected: string (The issue found)
-- renovation_suggestion: string (The fix, e.g., 'Install vertical platform lift')
-- estimated_cost_usd: integer (Rough estimate)
-- compliance_note: string (MUST reference specific AODA (Accessibility for Ontarians with Disabilities Act) standards and regulations, e.g., 'AODA Section 4.1.3: Minimum clear width of 920mm for doorways', 'AODA Section 4.2.1: Maximum 1:12 slope ratio for ramps', 'AODA Section 4.3.2: Grab bar height requirements of 33-36 inches above floor', 'AODA Section 4.4.1: Accessible route requirements')
-- clear_mask: string (For structural renovations requiring removal: describe the object to be removed, e.g., "the bathroom vanity cabinet". For non-structural renovations, use empty string "")
-- clear_prompt: string (For structural renovations: describe what should replace the removed object, e.g., "empty matching floor and wall, seamless transition". For non-structural renovations, use empty string "")
-- build_mask: string (MUST describe a wider area that includes where the new feature will be AND the adjacent ground/floor space surrounding it on both sides. This gives the AI enough pixel space to draw railings and other safety features. Example: 'the floating sink area and surrounding wall space' or 'the concrete stairs and the ground area immediately surrounding them on both sides')
-- build_prompt: string (MUST start with the most critical visual elements first, especially safety features like railings, ramps, and structural elements. Front-load these details at the very beginning of the prompt. Example: 'Black metal railings on both sides of a modern wooden ramp with 1:12 slope, photorealistic, 8k, cinematic lighting, matching original siding style' - notice how 'Black metal railings' comes FIRST)
-- mask_prompt: string (For backward compatibility: same as build_mask if structural renovation, otherwise describe the area to modify)
-- image_gen_prompt: string (For backward compatibility: same as build_prompt if structural renovation, otherwise the prompt for the image generator)"""
+        # Use prompt from prompts.py
+        prompt = AUDIT_PROMPT
 
         # Use new google.genai client for text analysis
         # Use same format as generate_renovation for consistency
@@ -375,6 +371,25 @@ Return a strict JSON object with these keys:
         
         audit_data = _validate_audit_response(audit_data)
         
+        # Adjust cost if it seems unrealistic (cap at reasonable maximum for residential)
+        cost = audit_data.get("estimated_cost_usd", 0)
+        if cost > 50000:
+            # If cost exceeds $50k, it's likely inflated - reduce by 30-50% or cap
+            # This handles cases where AI overestimates for simple renovations
+            renovation_lower = audit_data.get("renovation_suggestion", "").lower()
+            if any(keyword in renovation_lower for keyword in ["grab bar", "handle", "signage", "lever"]):
+                # Simple additions should be under $500
+                audit_data["estimated_cost_usd"] = min(cost, 500)
+            elif any(keyword in renovation_lower for keyword in ["ramp", "wider doorway", "threshold"]):
+                # Moderate changes should be under $5000
+                audit_data["estimated_cost_usd"] = min(cost, 5000)
+            elif any(keyword in renovation_lower for keyword in ["lift", "elevator", "platform"]):
+                # Major changes like lifts can be $15-20k, cap at $25k
+                audit_data["estimated_cost_usd"] = min(cost, 25000)
+            else:
+                # For other cases, cap at $30k and reduce by 30%
+                audit_data["estimated_cost_usd"] = min(int(cost * 0.7), 30000)
+        
         # Calculate accessibility score
         audit_data["accessibility_score"] = calculate_accessibility_score(audit_data)
         
@@ -434,58 +449,12 @@ def generate_renovation(
         # Build reasoning prompt for spatial analysis and AODA-compliant regeneration
         if is_two_pass and clear_mask and clear_prompt and build_mask and build_prompt:
             # Structural renovation: needs removal then construction
-            reasoning_prompt = f"""You are an expert accessibility architect performing a visual renovation.
-
-STEP 1 - SPATIAL ANALYSIS:
-First, carefully analyze the spatial constraints of this image. Focus on:
-- The area described as: "{clear_mask}" (this needs to be removed)
-- The surrounding context and boundaries
-- The floor/ground plane and wall intersections
-- Lighting conditions and perspective
-
-STEP 2 - REMOVAL REASONING:
-The object "{clear_mask}" must be removed and replaced with: "{clear_prompt}"
-Reason about how to seamlessly blend the removal with the surrounding environment.
-
-STEP 3 - CONSTRUCTION REASONING:
-In the area described as: "{build_mask}"
-Construct the following AODA-compliant accessible feature: "{build_prompt}"
-
-Reason about:
-- Proper scale and proportion relative to the space
-- Safety features like railings (these are CRITICAL - include them prominently)
-- How the new feature integrates with existing architectural elements
-- AODA compliance requirements (slopes, widths, heights)
-
-STEP 4 - GENERATE:
-Generate a photorealistic image that shows the renovated space with the accessibility improvement.
-Preserve all surrounding context exactly. Only modify the specified barrier region.
-Ensure safety features like railings are clearly visible and properly positioned."""
+            reasoning_prompt = get_structural_renovation_prompt(
+                clear_mask, clear_prompt, build_mask, build_prompt
+            )
         else:
             # Non-structural renovation: direct modification
-            reasoning_prompt = f"""You are an expert accessibility architect performing a visual renovation.
-
-STEP 1 - SPATIAL ANALYSIS:
-Carefully analyze the spatial constraints of this image, focusing on:
-- The area described as: "{mask_prompt}"
-- The surrounding context, boundaries, and adjacent elements
-- The floor/ground plane, wall positions, and perspective
-- Current lighting conditions and shadows
-
-STEP 2 - AODA COMPLIANCE REASONING:
-For the area "{mask_prompt}", reason about how to implement:
-"{prompt}"
-
-Consider:
-- Proper scale and proportion for accessibility (AODA standards)
-- Safety features like grab bars, railings, or contrast markings
-- How modifications integrate with existing architectural elements
-- Maintaining visual consistency with the surrounding space
-
-STEP 3 - GENERATE:
-Generate a photorealistic image showing the accessibility improvement.
-Preserve all surrounding context exactly. Only modify the specified barrier region.
-Ensure any safety features are clearly visible and properly positioned per AODA guidelines."""
+            reasoning_prompt = get_non_structural_renovation_prompt(mask_prompt, prompt)
 
         print(f"[Gemini Image] Reasoning prompt constructed for: {mask_prompt}")
         print(f"[Gemini Image] Target modification: {prompt}")

@@ -86,7 +86,7 @@ export default function ReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAF9]">
+    <div className="min-h-screen bg-[#F0F7FF]">
       <div className="mx-auto max-w-7xl px-4 py-8">
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* Left Sidebar - 1/3 width */}

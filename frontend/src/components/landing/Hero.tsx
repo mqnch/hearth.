@@ -52,6 +52,7 @@ export default function Hero() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'listing' | 'image'>('listing');
+  const [wheelchairAccessible, setWheelchairAccessible] = useState(false);
   const router = useRouter();
 
   const handleAnalyze = async (e: React.FormEvent) => {
@@ -69,7 +70,10 @@ export default function Hero() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ image_url: url }),
+          body: JSON.stringify({ 
+            image_url: url,
+            wheelchair_accessible: wheelchairAccessible
+          }),
         });
 
         if (!response.ok) {
@@ -115,6 +119,7 @@ export default function Hero() {
 
           // Store in same format as listing analysis
           localStorage.setItem("listingAnalysisResult", JSON.stringify(singleImageResult));
+          localStorage.setItem("wheelchairAccessible", JSON.stringify(wheelchairAccessible));
           router.push("/report");
         } else {
           throw new Error("Analysis failed: No audit data returned");
@@ -128,7 +133,8 @@ export default function Hero() {
           },
           body: JSON.stringify({
             listing_url: url,
-            max_images: 10
+            max_images: 10,
+            wheelchair_accessible: wheelchairAccessible
           }),
         });
 
@@ -144,6 +150,7 @@ export default function Hero() {
 
         if (result.results && result.results.length > 0) {
           localStorage.setItem("listingAnalysisResult", JSON.stringify(result));
+          localStorage.setItem("wheelchairAccessible", JSON.stringify(wheelchairAccessible));
           router.push("/report");
         } else if (result.total_images_found === 0) {
           throw new Error("No images found in listing. Try using a direct image URL instead (switch to Image URL mode).");
@@ -223,37 +230,56 @@ export default function Hero() {
         </div>
 
         {/* Search Form */}
-        <form onSubmit={handleAnalyze} className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <Search className="h-5 w-5 text-[#D4A574]" aria-hidden="true" />
+        <form onSubmit={handleAnalyze} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <Search className="h-5 w-5 text-[#D4A574]" aria-hidden="true" />
+              </div>
+              <Input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={
+                  inputMode === 'listing'
+                    ? "Enter Realtor.ca listing URL..."
+                    : "Enter property image URL..."
+                }
+                className="pl-12 border-[#D4A574] focus:border-[#D2691E] focus:ring-[#D2691E]"
+                aria-label={
+                  inputMode === 'listing'
+                    ? "Enter a Realtor.ca listing URL for accessibility analysis"
+                    : "Enter a property image URL for accessibility analysis"
+                }
+                required
+              />
             </div>
-            <Input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={
-                inputMode === 'listing'
-                  ? "Enter Realtor.ca listing URL..."
-                  : "Enter property image URL..."
-              }
-              className="pl-12 border-[#D4A574] focus:border-[#D2691E] focus:ring-[#D2691E]"
-              aria-label={
-                inputMode === 'listing'
-                  ? "Enter a Realtor.ca listing URL for accessibility analysis"
-                  : "Enter a property image URL for accessibility analysis"
-              }
-              required
-            />
+            <Button
+              type="submit"
+              disabled={isLoading}
+              size="lg"
+              className="bg-[#D2691E] hover:bg-[#B8860B] sm:whitespace-nowrap"
+            >
+              {isLoading ? "Processing Analysis..." : "Analyze Property"}
+            </Button>
           </div>
-          <Button
-            type="submit"
-            disabled={isLoading}
-            size="lg"
-            className="bg-[#D2691E] hover:bg-[#B8860B] sm:whitespace-nowrap"
-          >
-            {isLoading ? "Processing Analysis..." : "Analyze Property"}
-          </Button>
+          
+          {/* Wheelchair Accessible Checkbox */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="wheelchair-accessible"
+              checked={wheelchairAccessible}
+              onChange={(e) => setWheelchairAccessible(e.target.checked)}
+              className="w-4 h-4 text-[#D2691E] border-[#D4A574] rounded focus:ring-[#D2691E] focus:ring-2"
+            />
+            <label 
+              htmlFor="wheelchair-accessible" 
+              className="text-sm text-[#5C4033] cursor-pointer"
+            >
+              Require wheelchair-accessible modifications
+            </label>
+          </div>
         </form>
 
         {/* Error Message */}

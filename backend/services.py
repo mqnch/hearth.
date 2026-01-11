@@ -14,7 +14,7 @@ from google.genai import types as genai_types
 
 # Import prompts
 from prompts import (
-    AUDIT_PROMPT,
+    get_audit_prompt,
     get_structural_renovation_prompt,
     get_non_structural_renovation_prompt,
 )
@@ -148,6 +148,10 @@ def _validate_audit_response(audit_data: Dict[str, Any]) -> Dict[str, Any]:
     audit_data.setdefault("clear_mask", "")
     audit_data.setdefault("clear_prompt", "")
     
+    # Set defaults for optional problem/solution description fields
+    audit_data.setdefault("problem_description", "")
+    audit_data.setdefault("solution_description", "")
+    
     # Validate cost is a number
     if not isinstance(audit_data.get("estimated_cost_usd"), (int, float)):
         raise ValueError("estimated_cost_usd must be a number")
@@ -270,7 +274,7 @@ def calculate_accessibility_score(audit_data: Dict[str, Any]) -> int:
     return max(0, min(100, score))
 
 
-def audit_room(image_url: str) -> Dict[str, Any]:
+def audit_room(image_url: str, wheelchair_accessible: bool = False) -> Dict[str, Any]:
     """Performs a spatial audit of a room for accessibility.
     
     Analyzes the image using Gemini to identify accessibility barriers and
@@ -278,6 +282,8 @@ def audit_room(image_url: str) -> Dict[str, Any]:
     
     Args:
         image_url: The URL of the image to analyze
+        wheelchair_accessible: If True, apply wheelchair-accessible modifications;
+                               If False, apply general accessibility improvements
         
     Returns:
         A dictionary containing:
@@ -306,8 +312,8 @@ def audit_room(image_url: str) -> Dict[str, Any]:
         img = Image.open(BytesIO(image_data))
         mime_type = f"image/{img.format.lower()}" if img.format else "image/jpeg"
 
-        # Use prompt from prompts.py
-        prompt = AUDIT_PROMPT
+        # Use prompt from prompts.py with wheelchair_accessible flag
+        prompt = get_audit_prompt(wheelchair_accessible=wheelchair_accessible)
 
         # Use new google.genai client for text analysis
         # Use same format as generate_renovation for consistency
@@ -409,7 +415,8 @@ def generate_renovation(
     clear_mask: Optional[str] = None,
     clear_prompt: Optional[str] = None,
     build_mask: Optional[str] = None,
-    build_prompt: Optional[str] = None
+    build_prompt: Optional[str] = None,
+    wheelchair_accessible: bool = False
 ) -> Optional[bytes]:
     """Uses Gemini 3 Pro Image to visualize accessibility renovations.
     
@@ -426,6 +433,7 @@ def generate_renovation(
         clear_prompt: What to replace removed object with
         build_mask: Wider area description for construction
         build_prompt: Detailed prompt for new accessible features
+        wheelchair_accessible: If True, apply wheelchair-accessible modifications
         
     Returns:
         The generated image bytes, or None if generation fails
@@ -450,11 +458,11 @@ def generate_renovation(
         if is_two_pass and clear_mask and clear_prompt and build_mask and build_prompt:
             # Structural renovation: needs removal then construction
             reasoning_prompt = get_structural_renovation_prompt(
-                clear_mask, clear_prompt, build_mask, build_prompt
+                clear_mask, clear_prompt, build_mask, build_prompt, wheelchair_accessible=wheelchair_accessible
             )
         else:
             # Non-structural renovation: direct modification
-            reasoning_prompt = get_non_structural_renovation_prompt(mask_prompt, prompt)
+            reasoning_prompt = get_non_structural_renovation_prompt(mask_prompt, prompt, wheelchair_accessible=wheelchair_accessible)
 
         print(f"[Gemini Image] Reasoning prompt constructed for: {mask_prompt}")
         print(f"[Gemini Image] Target modification: {prompt}")

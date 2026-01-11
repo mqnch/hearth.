@@ -10,6 +10,8 @@ interface TransformationViewerProps {
   originalImageUrl?: string;
   renovatedImageData?: string | null;
   isGenerating?: boolean;
+  problemDescription?: string;
+  solutionDescription?: string;
 }
 
 export default function TransformationViewer({
@@ -18,6 +20,8 @@ export default function TransformationViewer({
   originalImageUrl,
   renovatedImageData,
   isGenerating = false,
+  problemDescription,
+  solutionDescription,
 }: TransformationViewerProps) {
   const [sliderPosition, setSliderPosition] = useState(50);
   
@@ -128,25 +132,25 @@ export default function TransformationViewer({
       </div>
 
       {/* Problem Section */}
-      {analysis.features[0] && (
+      {(problemDescription || (analysis.features[selectedImageIndex] && analysis.features[selectedImageIndex].name)) && (
         <div className="bg-white rounded-sm p-6 border border-[#D4A574] shadow-sm">
           <h3 className="text-l font-bold text-[#5C4033] mb-2">
             Problem
           </h3>
           <p className="text-[#B8860B] text-base leading-relaxed">
-            {analysis.features[0].name}
+            {problemDescription || (analysis.features[selectedImageIndex] && analysis.features[selectedImageIndex].name) || "No problem detected"}
           </p>
         </div>
       )}
 
       {/* Solution Section */}
-      {analysis.features[0] && (
+      {(solutionDescription || (analysis.features[selectedImageIndex] && analysis.features[selectedImageIndex].description)) && (
         <div className="bg-[#F5E6D3] rounded-sm p-6 border border-[#D4A574]">
           <h3 className="text-l font-bold text-[#5C4033] mb-2">
             Solution
           </h3>
           <p className="text-[#B8860B] text-base leading-relaxed">
-            {analysis.features[0].description}
+            {solutionDescription || (analysis.features[selectedImageIndex] && analysis.features[selectedImageIndex].description) || "No solution provided"}
           </p>
         </div>
       )}

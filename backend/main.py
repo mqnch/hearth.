@@ -41,10 +41,12 @@ app.add_middleware(
 # Pydantic models for request validation
 class AnalyzeRequest(BaseModel):
     image_url: str
+    wheelchair_accessible: bool = False
 
 class ListingUrlRequest(BaseModel):
     listing_url: str
     max_images: int = 5  # Limit number of images to analyze (cost control)
+    wheelchair_accessible: bool = False
 
 class TestRenovationRequest(BaseModel):
     image_url: str
@@ -54,6 +56,7 @@ class TestRenovationRequest(BaseModel):
 class GenerateRenovationRequest(BaseModel):
     image_url: str
     audit_data: dict  # Pass the full audit result from the listing analysis
+    wheelchair_accessible: bool = False
 
 # Health check endpoint
 @app.get("/health")
@@ -92,7 +95,7 @@ async def list_models():
 async def analyze(request: AnalyzeRequest):
     try:
         # Step 1: Perform accessibility audit using Gemini
-        audit_data = audit_room(request.image_url)
+        audit_data = audit_room(request.image_url, wheelchair_accessible=request.wheelchair_accessible)
         
         # Step 2: Extract prompts from audit
         image_gen_prompt = audit_data.get("image_gen_prompt")
@@ -126,7 +129,8 @@ async def analyze(request: AnalyzeRequest):
                     clear_mask=clear_mask if is_two_pass else None,
                     clear_prompt=clear_prompt if is_two_pass else None,
                     build_mask=build_mask if is_two_pass else None,
-                    build_prompt=build_prompt if is_two_pass else None
+                    build_prompt=build_prompt if is_two_pass else None,
+                    wheelchair_accessible=request.wheelchair_accessible
                 )
                 
                 # Step 4: Encode image to base64 (Gemini returns JPEG based on JFIF signature)
@@ -263,7 +267,7 @@ async def analyze_from_listing(request: ListingUrlRequest):
                 print(f"Auditing image {idx}/{len(images_to_analyze)}...")
 
                 # Run audit only
-                audit_data = audit_room(image_url)
+                audit_data = audit_room(image_url, wheelchair_accessible=request.wheelchair_accessible)
 
                 results.append({
                     "image_number": idx,
@@ -355,6 +359,7 @@ async def generate_renovation_endpoint(request: GenerateRenovationRequest):
             "clear_prompt": clear_prompt if is_two_pass else "",
             "build_mask": build_mask if is_two_pass else "",
             "build_prompt": build_prompt if is_two_pass else "",
+            "wheelchair_accessible": request.wheelchair_accessible,
         }
         cache_key = hashlib.sha256(
             json.dumps(cache_key_data, sort_keys=True).encode('utf-8')
@@ -382,7 +387,8 @@ async def generate_renovation_endpoint(request: GenerateRenovationRequest):
             clear_mask=clear_mask if is_two_pass else None,
             clear_prompt=clear_prompt if is_two_pass else None,
             build_mask=build_mask if is_two_pass else None,
-            build_prompt=build_prompt if is_two_pass else None
+            build_prompt=build_prompt if is_two_pass else None,
+            wheelchair_accessible=request.wheelchair_accessible
         )
 
         if renovated_image_bytes:

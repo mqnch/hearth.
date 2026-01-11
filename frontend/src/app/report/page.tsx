@@ -233,6 +233,9 @@ export default function ReportPage() {
 
     try {
       console.log(`Generating renovation for gallery index ${imageIndex} (original index ${originalIndex})`);
+      // Get wheelchair_accessible flag from localStorage
+      const wheelchairAccessible = JSON.parse(localStorage.getItem("wheelchairAccessible") || "false");
+
       const response = await fetch("http://localhost:8000/generate-renovation", {
         method: "POST",
         headers: {
@@ -241,6 +244,7 @@ export default function ReportPage() {
         body: JSON.stringify({
           image_url: imageResult.original_url,
           audit_data: imageResult.audit,
+          wheelchair_accessible: wheelchairAccessible,
         }),
         signal: abortController.signal,
       });
@@ -326,6 +330,27 @@ export default function ReportPage() {
               originalImageUrl={analysis.images[selectedImageIndex]?.original || ""}
               renovatedImageData={renovatedImages[selectedImageIndex] || null}
               isGenerating={generatingImages.has(selectedImageIndex)}
+              problemDescription={
+                (() => {
+                  const originalIndex = imageIndexMap.get(selectedImageIndex);
+                  if (originalIndex !== undefined && listingResult?.results[originalIndex]?.audit) {
+                    return listingResult.results[originalIndex].audit.barrier || 
+                           listingResult.results[originalIndex].audit.problem_description ||
+                           listingResult.results[originalIndex].audit.barrier_detected;
+                  }
+                  return undefined;
+                })()
+              }
+              solutionDescription={
+                (() => {
+                  const originalIndex = imageIndexMap.get(selectedImageIndex);
+                  if (originalIndex !== undefined && listingResult?.results[originalIndex]?.audit) {
+                    return listingResult.results[originalIndex].audit.renovation_suggestion ||
+                           listingResult.results[originalIndex].audit.solution_description;
+                  }
+                  return undefined;
+                })()
+              }
             />
             <Gallery
               analysis={analysis}

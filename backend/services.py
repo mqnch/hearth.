@@ -30,7 +30,7 @@ gemini_client = genai_client.Client(api_key=os.getenv("GEMINI_API_KEY"))
 # ============================================================================
 
 # Gemini Configuration
-GEMINI_TEXT_MODEL = "gemini-3-pro-preview" # Flash-optimized for speed
+GEMINI_TEXT_MODEL = "gemini-3-flash-preview" # Flash-optimized for speed
 
 # Gemini Image Generation Configuration
 GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"

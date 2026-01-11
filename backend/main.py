@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 import base64
-import google.generativeai as genai
+import google.genai as genai
 from services import audit_room, generate_renovation
 
 # Load environment variables from .env file
@@ -12,15 +12,14 @@ load_dotenv()
 
 # Verify environment variables are loaded (for later use)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-STABILITY_KEY = os.getenv("STABILITY_KEY")
 
 # Initialize FastAPI app
 app = FastAPI()
 
-# Add CORS middleware to allow all origins
+# Add CORS middleware to allow frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,20 +44,17 @@ async def health():
 async def list_models():
     """List all available Gemini models for your API key."""
     try:
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        models = genai.list_models()
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        models = client.models.list()
         
         # Filter and format model information
         available_models = []
         for model in models:
-            # Only include models that support generateContent
-            if 'generateContent' in model.supported_generation_methods:
-                available_models.append({
-                    "name": model.name,
-                    "display_name": model.display_name,
-                    "description": model.description,
-                    "supported_methods": list(model.supported_generation_methods)
-                })
+            available_models.append({
+                "name": model.name,
+                "display_name": getattr(model, 'display_name', model.name),
+                "description": getattr(model, 'description', ''),
+            })
         
         return {
             "available_models": available_models,
@@ -95,7 +91,7 @@ async def analyze(request: AnalyzeRequest):
             build_prompt
         )
         
-        # Step 3: Generate renovated image using Stability AI
+        # Step 3: Generate renovated image using Gemini 3 Pro Image
         renovated_image_bytes = None
         renovated_image_base64 = None
         
@@ -112,10 +108,10 @@ async def analyze(request: AnalyzeRequest):
                     build_prompt=build_prompt if is_two_pass else None
                 )
                 
-                # Step 4: Encode image to base64
+                # Step 4: Encode image to base64 (Gemini returns JPEG based on JFIF signature)
                 if renovated_image_bytes:
                     base64_encoded = base64.b64encode(renovated_image_bytes).decode('utf-8')
-                    renovated_image_base64 = f"data:image/webp;base64,{base64_encoded}"
+                    renovated_image_base64 = f"data:image/jpeg;base64,{base64_encoded}"
             except Exception as e:
                 # If image generation fails, log error but continue with audit data
                 print(f"Image generation error: {str(e)}")
@@ -124,7 +120,7 @@ async def analyze(request: AnalyzeRequest):
         # Return response with audit and image (or null if generation failed)
         return {
             "audit": audit_data,
-            "renovated_image_base64": renovated_image_base64
+            "image_data": renovated_image_base64
         }
         
     except Exception as e:
@@ -147,11 +143,11 @@ async def test_renovation(request: TestRenovationRequest):
         )
         
         if renovated_image_bytes:
-            # Encode image to base64
+            # Encode image to base64 (Gemini returns JPEG based on JFIF signature)
             base64_encoded = base64.b64encode(renovated_image_bytes).decode('utf-8')
             return {
                 "success": True,
-                "image_base64": f"data:image/webp;base64,{base64_encoded}",
+                "image_base64": f"data:image/jpeg;base64,{base64_encoded}",
                 "message": "Image generated successfully"
             }
         else:

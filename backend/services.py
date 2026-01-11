@@ -7,40 +7,34 @@ from typing import Dict, Optional, Any, Union
 from urllib.parse import urlparse
 from PIL import Image
 from dotenv import load_dotenv
-import google.generativeai as genai
+
+# Google AI Libraries
+import google.genai as genai_client  # For all Gemini operations
+from google.genai import types as genai_types
 
 # Load API Keys
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Initialize Gemini Client (used for both text analysis and image generation)
+gemini_client = genai_client.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ============================================================================
 # CONFIGURATION CONSTANTS
 # ============================================================================
 
 # Gemini Configuration
-MODEL_NAME = "models/gemini-2.5-flash"  # Alternative: "models/gemini-2.5-pro" for maximum capability
-GEMINI_GENERATION_CONFIG = {
-    "temperature": 0.4,
-    "top_p": 0.95,
-    "top_k": 64,
-    "max_output_tokens": 8192,
-    "response_mime_type": "application/json",
-}
+GEMINI_TEXT_MODEL = "gemini-3-pro-preview" # Flash-optimized for speed
 
-# Stability AI Configuration
-STABILITY_API_URL = "https://api.stability.ai/v2beta/stable-image/edit/search-and-replace"
-STABILITY_API_TIMEOUT = 60  # seconds
-STABILITY_OUTPUT_FORMAT = "webp"
-DENOISING_STRENGTH_ERASE = "0.75"  # High denoising strength to regenerate background
-DENOISING_STRENGTH_CONSTRUCT = "0.6"  # Moderate denoising strength for construction
-MASK_PADDING = "7"  # 5-10 pixel range, using 7 as middle
+# Gemini Image Generation Configuration
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
+GEMINI_IMAGE_TIMEOUT = 60  # Reduced for Flash-optimized speed
 
 # Image Processing Configuration
 MAX_IMAGE_SIZE_MB = 10
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 
-# Feasibility Score Weights (0-100 scale, where higher = more feasible)
-FEASIBILITY_SCORE_WEIGHTS = {
+# Accessibility Score Weights (0-100 scale, where higher = more accessible after renovation)
+ACCESSIBILITY_SCORE_WEIGHTS = {
     "cost": {
         "max_points": 40,
         "ranges": [
@@ -72,11 +66,6 @@ FEASIBILITY_SCORE_WEIGHTS = {
     }
 }
 
-# Initialize Gemini Model
-model = genai.GenerativeModel(
-    model_name=MODEL_NAME,
-    generation_config=GEMINI_GENERATION_CONFIG,
-)
 
 # ============================================================================
 # VALIDATION HELPERS
@@ -184,7 +173,7 @@ def get_image_bytes(image_url: str) -> bytes:
     _validate_image_url(image_url)
     
     try:
-        response = requests.get(image_url, timeout=STABILITY_API_TIMEOUT)
+        response = requests.get(image_url, timeout=GEMINI_IMAGE_TIMEOUT)
         response.raise_for_status()
         
         image_data = response.content
@@ -198,23 +187,23 @@ def get_image_bytes(image_url: str) -> bytes:
             f"Failed to download image from {image_url}: {str(e)}"
         ) from e
 
-def calculate_feasibility_score(audit_data: Dict[str, Any]) -> int:
-    """Calculates a feasibility score (0-100) based on renovation complexity.
+def calculate_accessibility_score(audit_data: Dict[str, Any]) -> int:
+    """Calculates an accessibility score (0-100) based on renovation impact.
     
-    Higher score = more feasible. Factors include:
-    - Cost (0-40 points)
-    - Complexity (0-30 points)
-    - Barrier type (0-20 points)
-    - Time/scope (0-10 points)
+    Higher score = more accessible after renovation. Factors include:
+    - Cost effectiveness (0-40 points) - lower cost renovations that improve accessibility
+    - Implementation complexity (0-30 points) - simpler renovations are more likely to be completed
+    - Barrier type impact (0-20 points) - effectiveness of addressing the barrier
+    - Time/scope (0-10 points) - quicker implementations improve accessibility sooner
     
     Args:
         audit_data: The audit data dictionary containing renovation information
         
     Returns:
-        An integer feasibility score from 0-100
+        An integer accessibility score from 0-100
     """
     score = 0
-    weights = FEASIBILITY_SCORE_WEIGHTS
+    weights = ACCESSIBILITY_SCORE_WEIGHTS
     
     # Cost Factor (0-40 points)
     cost = audit_data.get("estimated_cost_usd", 0)
@@ -295,7 +284,7 @@ def audit_room(image_url: str) -> Dict[str, Any]:
         - build_prompt: Image gen prompt for Pass 2
         - mask_prompt: Backward compatible mask prompt
         - image_gen_prompt: Backward compatible image gen prompt
-        - feasibility_score: Calculated feasibility score (0-100)
+        - accessibility_score: Calculated accessibility score (0-100)
         
     Raises:
         ValueError: If the URL is invalid or response is malformed
@@ -304,7 +293,11 @@ def audit_room(image_url: str) -> Dict[str, Any]:
     """
     try:
         image_data = get_image_bytes(image_url)
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        
+        # Determine MIME type from image data
         img = Image.open(BytesIO(image_data))
+        mime_type = f"image/{img.format.lower()}" if img.format else "image/jpeg"
 
         prompt = """You are an expert Accessibility Architect (AODA compliant). Analyze this real estate photo.
 Identify the single most critical accessibility barrier (e.g., stairs, narrow doorway, high tub, bathroom vanity).
@@ -320,14 +313,70 @@ Return a strict JSON object with these keys:
 - mask_prompt: string (For backward compatibility: same as build_mask if structural renovation, otherwise describe the area to modify)
 - image_gen_prompt: string (For backward compatibility: same as build_prompt if structural renovation, otherwise the prompt for the image generator)"""
 
-        response = model.generate_content([prompt, img])
-        audit_data = json.loads(response.text)
+        # Use new google.genai client for text analysis
+        # Use same format as generate_renovation for consistency
+        response = gemini_client.models.generate_content(
+            model=GEMINI_TEXT_MODEL,
+            contents=[
+                prompt,
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": base64_image
+                    }
+                }
+            ],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["TEXT"],
+                response_mime_type="application/json"
+            )
+        )
+        
+        # Extract text response from GenerateContentResponse
+        # The response has a .text property and also candidates[0].content.parts[0].text
+        try:
+            # Try the .text property first (simplest)
+            response_text = response.text
+            
+            # Fallback to candidates structure if .text is empty
+            if not response_text and response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            response_text = part.text
+                            break
+            
+            if not response_text:
+                raise ValueError("No text found in Gemini response")
+            
+            # Parse JSON - handle both object and array formats
+            parsed_json = json.loads(response_text)
+            
+            # If the response is an array, extract the first element
+            if isinstance(parsed_json, list):
+                if len(parsed_json) > 0:
+                    audit_data = parsed_json[0]
+                else:
+                    raise ValueError("Empty array in JSON response")
+            else:
+                audit_data = parsed_json
+                
+        except json.JSONDecodeError as e:
+            print(f"[DEBUG] Failed to parse JSON. Response text: {response_text[:500] if 'response_text' in locals() else 'None'}")
+            raise ValueError(f"Failed to parse JSON response from Gemini: {str(e)}. Response: {response_text[:200] if 'response_text' in locals() else 'None'}") from e
+        except Exception as e:
+            print(f"[DEBUG] Error extracting response: {str(e)}")
+            raise
         
         # Validate response
+        if not audit_data:
+            raise ValueError("audit_data is None after parsing")
+        
         audit_data = _validate_audit_response(audit_data)
         
-        # Calculate feasibility score
-        audit_data["feasibility_score"] = calculate_feasibility_score(audit_data)
+        # Calculate accessibility score
+        audit_data["accessibility_score"] = calculate_accessibility_score(audit_data)
         
         return audit_data
     except json.JSONDecodeError as e:
@@ -347,204 +396,173 @@ def generate_renovation(
     build_mask: Optional[str] = None,
     build_prompt: Optional[str] = None
 ) -> Optional[bytes]:
-    """Uses Stability AI's Search-and-Replace to visualize the change.
+    """Uses Gemini 3 Pro Image to visualize accessibility renovations.
     
-    Supports two-pass workflow for structural renovations:
-    - Pass 1 (Erase): Removes structural elements with high denoising strength
-    - Pass 2 (Construct): Adds new accessible features with moderate denoising strength
+    Leverages Gemini's multimodal generate_content endpoint with Reasoning mode
+    for enhanced spatial analysis before regenerating barrier areas with
+    AODA-compliant fixes.
     
     Args:
         image_url: The URL of the original image
-        prompt: The image generation prompt (for single-pass or backward compatibility)
-        mask_prompt: The mask prompt (for single-pass or backward compatibility)
-        is_two_pass: Whether to use two-pass workflow
-        clear_mask: Mask prompt for Pass 1 (erase) if two-pass
-        clear_prompt: Image gen prompt for Pass 1 if two-pass
-        build_mask: Mask prompt for Pass 2 (construct) if two-pass
-        build_prompt: Image gen prompt for Pass 2 if two-pass
+        prompt: The image generation prompt (what to add/change)
+        mask_prompt: Description of the area to modify
+        is_two_pass: Whether structural removal is needed (handled by reasoning)
+        clear_mask: Description of object to remove (for structural renovations)
+        clear_prompt: What to replace removed object with
+        build_mask: Wider area description for construction
+        build_prompt: Detailed prompt for new accessible features
         
     Returns:
         The generated image bytes, or None if generation fails
         
     Raises:
         ValueError: If required parameters are missing
-        requests.RequestException: If API request fails
-        TimeoutError: If request times out
+        Exception: If Gemini API call fails
     """
-    stability_key = os.getenv('STABILITY_KEY')
-    if not stability_key:
-        raise ValueError("STABILITY_KEY environment variable is not set")
-    
-    headers = {
-        "authorization": f"Bearer {stability_key}",
-        "accept": "image/*"
-    }
-    
-    # Two-pass workflow for structural renovations
-    if is_two_pass and clear_mask and clear_prompt and build_mask and build_prompt:
-        try:
-            # Pass 1: Erase the object to be removed
-            image_data = get_image_bytes(image_url)
-            
-            print(f"[Pass 1 - Erase] Mask Prompt: {clear_mask}")
-            print(f"[Pass 1 - Erase] Image Gen Prompt: {clear_prompt}")
-            
-            files_pass1 = {
-                "image": ("image.webp", image_data, "image/webp")
-            }
-            
-            data_pass1 = {
-                "prompt": clear_prompt,
-                "search_prompt": clear_mask,
-                "output_format": STABILITY_OUTPUT_FORMAT,
-                "strength": DENOISING_STRENGTH_ERASE,
-                "grow_mask": MASK_PADDING,
-            }
-            
-            response_pass1 = requests.post(
-                STABILITY_API_URL,
-                headers=headers,
-                files=files_pass1,
-                data=data_pass1,
-                timeout=STABILITY_API_TIMEOUT
-            )
-            
-            if response_pass1.status_code != 200:
-                # If Pass 1 fails, log error and fall back to single-pass if possible
-                try:
-                    error_data = response_pass1.json()
-                    print(f"[Pass 1 - Erase] Stability AI Error ({response_pass1.status_code}): {error_data}")
-                except:
-                    print(f"[Pass 1 - Erase] Stability AI Error ({response_pass1.status_code}): {response_pass1.text}")
-                
-                # Fall back to single-pass mode if mask_prompt and prompt are available
-                if mask_prompt and prompt:
-                    print("[Pass 1 - Erase] Falling back to single-pass mode")
-                    return _single_pass_renovation(image_url, prompt, mask_prompt, headers)
-                return None
-            
-            # Store Pass 1 result as intermediate image
-            intermediate_image_bytes = response_pass1.content
-            
-            # Pass 2: Construct the new accessible features
-            print(f"[Pass 2 - Construct] Mask Prompt: {build_mask}")
-            print(f"[Pass 2 - Construct] Image Gen Prompt: {build_prompt}")
-            
-            files_pass2 = {
-                "image": ("image.webp", intermediate_image_bytes, "image/webp")
-            }
-            
-            data_pass2 = {
-                "prompt": build_prompt,
-                "search_prompt": build_mask,
-                "output_format": STABILITY_OUTPUT_FORMAT,
-                "strength": DENOISING_STRENGTH_CONSTRUCT,
-                "grow_mask": MASK_PADDING,
-            }
-            
-            response_pass2 = requests.post(
-                STABILITY_API_URL,
-                headers=headers,
-                files=files_pass2,
-                data=data_pass2,
-                timeout=STABILITY_API_TIMEOUT
-            )
-            
-            if response_pass2.status_code == 200:
-                return response_pass2.content
-            else:
-                # If Pass 2 fails, return Pass 1 result with warning
-                try:
-                    error_data = response_pass2.json()
-                    print(f"[Pass 2 - Construct] Stability AI Error ({response_pass2.status_code}): {error_data}")
-                except:
-                    print(f"[Pass 2 - Construct] Stability AI Error ({response_pass2.status_code}): {response_pass2.text}")
-                print("[Pass 2 - Construct] Warning: Returning Pass 1 result (erased but not constructed)")
-                return intermediate_image_bytes
-                
-        except requests.Timeout:
-            print("Two-pass renovation timed out")
-            # Fall back to single-pass mode if mask_prompt and prompt are available
-            if mask_prompt and prompt:
-                print("Falling back to single-pass mode")
-                return _single_pass_renovation(image_url, prompt, mask_prompt, headers)
-            return None
-        except Exception as e:
-            # Handle network errors or other exceptions
-            print(f"Two-pass renovation failed: {str(e)}")
-            # Fall back to single-pass mode if mask_prompt and prompt are available
-            if mask_prompt and prompt:
-                print("Falling back to single-pass mode")
-                return _single_pass_renovation(image_url, prompt, mask_prompt, headers)
-            return None
-    
-    # Single-pass workflow (backward compatible)
     if not prompt or not mask_prompt:
-        raise ValueError("prompt and mask_prompt are required for single-pass workflow")
+        raise ValueError("prompt and mask_prompt are required")
     
-    return _single_pass_renovation(image_url, prompt, mask_prompt, headers)
-
-
-def _single_pass_renovation(
-    image_url: str,
-    prompt: str,
-    mask_prompt: str,
-    headers: Dict[str, str]
-) -> Optional[bytes]:
-    """Helper function for single-pass renovation workflow.
-    
-    Args:
-        image_url: The URL of the original image
-        prompt: The image generation prompt
-        mask_prompt: The mask prompt
-        headers: HTTP headers for the API request
-        
-    Returns:
-        The generated image bytes, or None if generation fails
-        
-    Raises:
-        requests.RequestException: If API request fails
-        TimeoutError: If request times out
-    """
-    image_data = get_image_bytes(image_url)
-    
-    files = {
-        "image": ("image.webp", image_data, "image/webp")
-    }
-    
-    data = {
-        "prompt": prompt,
-        "search_prompt": mask_prompt,
-        "output_format": STABILITY_OUTPUT_FORMAT,
-    }
-
-    # Log the prompts being sent to Stability AI for debugging
-    print(f"[Stability AI] Image Gen Prompt: {prompt}")
-    print(f"[Stability AI] Mask Prompt: {mask_prompt}")
-
     try:
-        response = requests.post(
-            STABILITY_API_URL,
-            headers=headers,
-            files=files,
-            data=data,
-            timeout=STABILITY_API_TIMEOUT
+        # Download and encode the original image
+        image_data = get_image_bytes(image_url)
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        
+        # Determine MIME type from image data
+        img = Image.open(BytesIO(image_data))
+        mime_type = f"image/{img.format.lower()}" if img.format else "image/jpeg"
+        
+        # Build reasoning prompt for spatial analysis and AODA-compliant regeneration
+        if is_two_pass and clear_mask and clear_prompt and build_mask and build_prompt:
+            # Structural renovation: needs removal then construction
+            reasoning_prompt = f"""You are an expert accessibility architect performing a visual renovation.
+
+STEP 1 - SPATIAL ANALYSIS:
+First, carefully analyze the spatial constraints of this image. Focus on:
+- The area described as: "{clear_mask}" (this needs to be removed)
+- The surrounding context and boundaries
+- The floor/ground plane and wall intersections
+- Lighting conditions and perspective
+
+STEP 2 - REMOVAL REASONING:
+The object "{clear_mask}" must be removed and replaced with: "{clear_prompt}"
+Reason about how to seamlessly blend the removal with the surrounding environment.
+
+STEP 3 - CONSTRUCTION REASONING:
+In the area described as: "{build_mask}"
+Construct the following AODA-compliant accessible feature: "{build_prompt}"
+
+Reason about:
+- Proper scale and proportion relative to the space
+- Safety features like railings (these are CRITICAL - include them prominently)
+- How the new feature integrates with existing architectural elements
+- AODA compliance requirements (slopes, widths, heights)
+
+STEP 4 - GENERATE:
+Generate a photorealistic image that shows the renovated space with the accessibility improvement.
+Preserve all surrounding context exactly. Only modify the specified barrier region.
+Ensure safety features like railings are clearly visible and properly positioned."""
+        else:
+            # Non-structural renovation: direct modification
+            reasoning_prompt = f"""You are an expert accessibility architect performing a visual renovation.
+
+STEP 1 - SPATIAL ANALYSIS:
+Carefully analyze the spatial constraints of this image, focusing on:
+- The area described as: "{mask_prompt}"
+- The surrounding context, boundaries, and adjacent elements
+- The floor/ground plane, wall positions, and perspective
+- Current lighting conditions and shadows
+
+STEP 2 - AODA COMPLIANCE REASONING:
+For the area "{mask_prompt}", reason about how to implement:
+"{prompt}"
+
+Consider:
+- Proper scale and proportion for accessibility (AODA standards)
+- Safety features like grab bars, railings, or contrast markings
+- How modifications integrate with existing architectural elements
+- Maintaining visual consistency with the surrounding space
+
+STEP 3 - GENERATE:
+Generate a photorealistic image showing the accessibility improvement.
+Preserve all surrounding context exactly. Only modify the specified barrier region.
+Ensure any safety features are clearly visible and properly positioned per AODA guidelines."""
+
+        print(f"[Gemini Image] Reasoning prompt constructed for: {mask_prompt}")
+        print(f"[Gemini Image] Target modification: {prompt}")
+        
+        # Call Gemini for image generation with Flash-optimized settings
+        # We prioritize speed by removing any reasoning/thinking requirements
+        response = gemini_client.models.generate_content(
+            model=GEMINI_IMAGE_MODEL,
+            contents=[
+                reasoning_prompt,
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": base64_image
+                    }
+                }
+            ],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["TEXT", "IMAGE"],
+                # Flash-optimized: Thinking disabled for raw speed
+            )
         )
         
-        if response.status_code == 200:
-            return response.content
-        else:
-            # If visual gen fails, we still want the audit, so we log the error
-            try:
-                error_data = response.json()
-                print(f"Stability AI Error ({response.status_code}): {error_data}")
-            except:
-                print(f"Stability AI Error ({response.status_code}): {response.text}")
+        # Extract the generated image from the response
+        # Iterate through parts to find the actual image modality
+        print(f"[DEBUG] Response type: {type(response)}")
+        
+        parts = []
+        if response.candidates and len(response.candidates) > 0:
+            candidate = response.candidates[0]
+            if candidate.content and candidate.content.parts:
+                parts = candidate.content.parts
+                print(f"[DEBUG] Found {len(parts)} parts in candidate.content.parts")
+        
+        # Fallback to response.parts if available
+        if not parts and hasattr(response, 'parts') and response.parts:
+            parts = response.parts
+            print(f"[DEBUG] Found {len(parts)} parts in response.parts")
+            
+        if not parts:
+            print(f"[DEBUG] No parts found in response or candidate. Finish reason: {getattr(response.candidates[0], 'finish_reason', 'N/A') if response.candidates else 'N/A'}")
             return None
-    except requests.Timeout:
-        print(f"Stability AI request timed out after {STABILITY_API_TIMEOUT} seconds")
+
+        # Find all parts that could be images
+        image_bytes = None
+        for i, part in enumerate(parts):
+            print(f"[DEBUG] Inspecting part {i}: type={type(part)}")
+            
+            # Log any text/reasoning if present
+            if hasattr(part, 'text') and part.text:
+                print(f"[Gemini Image] Output text: {part.text[:200]}...")
+            
+            # Check for image data in different possible attributes
+            # 1. inline_data.data (Standard for generate_content with IMAGE modality)
+            if hasattr(part, 'inline_data') and part.inline_data:
+                if part.inline_data.data:
+                    current_data = part.inline_data.data
+                    print(f"[DEBUG] Part {i} has inline_data.data, size: {len(current_data)} bytes")
+                    # If it's a significant size, it's likely our image
+                    if len(current_data) > 10000:
+                        image_bytes = current_data
+                        break
+            
+            # 2. image attribute (Some SDK versions/models)
+            if hasattr(part, 'image') and part.image:
+                if hasattr(part.image, 'data') and part.image.data:
+                    print(f"[DEBUG] Part {i} has image.data, size: {len(part.image.data)} bytes")
+                    image_bytes = part.image.data
+                    break
+        
+        if image_bytes:
+            print(f"[Gemini Image] Successfully extracted image ({len(image_bytes)} bytes)")
+            return image_bytes
+        
+        print("[Gemini Image] No image part found in response parts")
         return None
-    except requests.RequestException as e:
-        # Handle network errors or other exceptions
-        print(f"Stability AI request failed: {str(e)}")
+        
+    except Exception as e:
+        print(f"[Gemini Image] Generation failed: {str(e)}")
         return None

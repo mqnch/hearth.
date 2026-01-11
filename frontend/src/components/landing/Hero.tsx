@@ -6,21 +6,58 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+interface AnalysisResult {
+  audit: {
+    barrier_detected: string;
+    renovation_suggestion: string;
+    estimated_cost_usd: number;
+    compliance_note: string;
+    accessibility_score: number;
+    [key: string]: unknown;
+  };
+  image_data: string | null;
+}
+
 export default function Hero() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
 
     setIsLoading(true);
-    
-    // Simulate loading for 1 second
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    router.push("/report");
+    setError(null);
+
+    try {
+      const response = await fetch("http://localhost:8000/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ image_url: url }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.statusText}`);
+      }
+
+      const result: AnalysisResult = await response.json();
+
+      if (result.audit) {
+        // Store the result and original image URL in localStorage
+        localStorage.setItem("analysisResult", JSON.stringify(result));
+        localStorage.setItem("originalImageUrl", url);
+        router.push("/report");
+      } else {
+        throw new Error("Analysis failed: No audit data returned");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred during analysis");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -37,7 +74,7 @@ export default function Hero() {
         </p>
 
         {/* Search Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <form onSubmit={handleAnalyze} className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
               <Search className="h-5 w-5 text-slate-400" aria-hidden="true" />
@@ -46,9 +83,9 @@ export default function Hero() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="Paste Realtor.ca link here..."
+              placeholder="Paste image URL here..."
               className="pl-12"
-              aria-label="Realtor.ca listing URL"
+              aria-label="Image URL for accessibility analysis"
               required
             />
           </div>
@@ -58,13 +95,20 @@ export default function Hero() {
             size="lg"
             className="bg-blue-600 sm:whitespace-nowrap"
           >
-            {isLoading ? "Analyzing..." : "Analyze Home"}
+            {isLoading ? "Analyzing... (this may take a minute)" : "Analyze Home"}
           </Button>
         </form>
 
+        {/* Error Message */}
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">
+            {error}
+          </p>
+        )}
+
         {/* Helper Text */}
         <p className="text-sm text-slate-500">
-          Simply paste any Realtor.ca listing URL to get started
+          Paste an image URL to analyze accessibility and visualize renovations
         </p>
       </div>
     </section>

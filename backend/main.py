@@ -6,6 +6,7 @@ import os
 import base64
 import google.genai as genai
 from services import audit_room, generate_renovation
+from scraper import scrape_realtor_ca_listing, get_property_images
 
 # Load environment variables from .env file
 load_dotenv()
@@ -28,6 +29,10 @@ app.add_middleware(
 # Pydantic models for request validation
 class AnalyzeRequest(BaseModel):
     image_url: str
+
+class ListingUrlRequest(BaseModel):
+    listing_url: str
+    max_images: int = 5  # Limit number of images to analyze (cost control)
 
 class TestRenovationRequest(BaseModel):
     image_url: str
@@ -161,5 +166,117 @@ async def test_renovation(request: TestRenovationRequest):
             "success": False,
             "error": f"Renovation test failed: {str(e)}",
             "image_base64": None
+        }
+
+# NEW: Analyze from Realtor.ca listing URL
+@app.post("/analyze-from-listing")
+async def analyze_from_listing(request: ListingUrlRequest):
+    """
+    Scrape a Realtor.ca listing and analyze all property images for accessibility.
+
+    Args:
+        listing_url: Full URL to a Realtor.ca listing
+        max_images: Maximum number of images to analyze (default: 5)
+
+    Returns:
+        {
+            "property_info": {...},  # Address, price, etc.
+            "images_analyzed": int,
+            "results": [...]  # Array of analysis results
+        }
+    """
+    try:
+        # Step 1: Scrape the listing
+        print(f"Scraping listing: {request.listing_url}")
+        listing_data = scrape_realtor_ca_listing(request.listing_url)
+
+        if "error" in listing_data:
+            return {
+                "error": f"Failed to scrape listing: {listing_data['error']}",
+                "property_info": None,
+                "results": []
+            }
+
+        # Step 2: Get property images
+        image_urls = listing_data.get("property_photos", [])
+
+        if not image_urls:
+            return {
+                "error": "No images found in listing",
+                "property_info": listing_data.get("basic_info", {}),
+                "results": []
+            }
+
+        # Limit number of images to analyze
+        images_to_analyze = image_urls[:request.max_images]
+        print(f"Analyzing {len(images_to_analyze)} images (out of {len(image_urls)} total)")
+
+        # Step 3: Analyze each image
+        results = []
+        for idx, image_url in enumerate(images_to_analyze, 1):
+            try:
+                print(f"Analyzing image {idx}/{len(images_to_analyze)}...")
+
+                # Run audit
+                audit_data = audit_room(image_url)
+
+                # Generate renovation if prompts available
+                image_gen_prompt = audit_data.get("image_gen_prompt")
+                mask_prompt = audit_data.get("mask_prompt")
+
+                renovated_image_base64 = None
+                if image_gen_prompt and mask_prompt:
+                    try:
+                        renovated_image_bytes = generate_renovation(
+                            image_url,
+                            image_gen_prompt,
+                            mask_prompt
+                        )
+
+                        if renovated_image_bytes:
+                            base64_encoded = base64.b64encode(renovated_image_bytes).decode('utf-8')
+                            renovated_image_base64 = f"data:image/jpeg;base64,{base64_encoded}"
+                    except Exception as e:
+                        print(f"Image generation error for image {idx}: {str(e)}")
+
+                results.append({
+                    "image_number": idx,
+                    "original_url": image_url,
+                    "audit": audit_data,
+                    "renovated_image": renovated_image_base64
+                })
+
+            except Exception as e:
+                print(f"Error analyzing image {idx}: {str(e)}")
+                results.append({
+                    "image_number": idx,
+                    "original_url": image_url,
+                    "error": str(e),
+                    "audit": None,
+                    "renovated_image": None
+                })
+
+        # Step 4: Return comprehensive report
+        return {
+            "property_info": {
+                "address": listing_data.get("basic_info", {}).get("address", "Unknown"),
+                "price": listing_data.get("basic_info", {}).get("price", "Unknown"),
+                "bedrooms": listing_data.get("basic_info", {}).get("bedrooms", "Unknown"),
+                "bathrooms": listing_data.get("basic_info", {}).get("bathrooms", "Unknown"),
+                "square_feet": listing_data.get("basic_info", {}).get("square_feet", "Unknown"),
+                "mls_number": listing_data.get("basic_info", {}).get("mls_number", "Unknown"),
+                "neighborhood": listing_data.get("neighborhood", {}).get("name", "Unknown"),
+                "location": listing_data.get("neighborhood", {}).get("location_description", ""),
+            },
+            "total_images_found": len(image_urls),
+            "images_analyzed": len(results),
+            "results": results
+        }
+
+    except Exception as e:
+        return {
+            "error": f"Failed to analyze listing: {str(e)}",
+            "property_info": None,
+            "results": []
         }
 

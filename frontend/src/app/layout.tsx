@@ -19,7 +19,7 @@ const spaceGroteskMono = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "hearth - Accessibility Analysis",
+  title: "hearth. - Accessibility Analysis",
   description: "Visualize accessibility renovations for your future home.",
 };
 

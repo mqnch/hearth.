@@ -50,7 +50,7 @@ export default function PropertySidebar({ analysis, propertyInfo }: PropertySide
         },
         body: JSON.stringify({
           listing_url: newLink.trim(),
-          max_images: 10,
+          max_images: 6,
           wheelchair_accessible: wheelchairAccessible
         }),
       });

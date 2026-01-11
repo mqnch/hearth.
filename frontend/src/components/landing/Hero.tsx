@@ -102,7 +102,7 @@ export default function Hero() {
           },
           body: JSON.stringify({
             listing_url: url,
-            max_images: 10,
+            max_images: 6,
             wheelchair_accessible: wheelchairAccessible
           }),
         });

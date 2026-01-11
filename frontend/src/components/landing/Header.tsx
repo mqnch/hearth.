@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home } from "lucide-react";
+import Image from "next/image";
 
 export default function Header() {
   return (
@@ -17,10 +17,13 @@ export default function Header() {
             href="/" 
             className="flex items-center gap-2 text-[#5C4033] hover:text-[#D2691E] transition-colors"
           >
-            {/* Temporary logo - simple home icon */}
-            <div className="flex h-10 w-10 items-center justify-center rounded-[1px] bg-[#D2691E] text-white">
-              <Home className="h-6 w-6" />
-            </div>
+            <Image 
+              src="/hearth.svg" 
+              alt="hearth logo" 
+              width={40} 
+              height={40}
+              className="h-10 w-10"
+            />
             <span className="text-xl font-bold text-[#5C4033]">hearth.</span>
           </Link>
         </div>

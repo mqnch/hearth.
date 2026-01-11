@@ -40,6 +40,77 @@ GEMINI_IMAGE_TIMEOUT = 60  # Reduced for Flash-optimized speed
 MAX_IMAGE_SIZE_MB = 10
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 
+# ============================================================================
+# FEASIBILITY VALIDATION
+# ============================================================================
+# Terms that indicate infeasible suggestions that should be blocked
+FEASIBILITY_BLOCKLIST = [
+    "elevator", "lift", "platform lift", "vertical platform lift", "stair lift",
+    "home elevator", "residential elevator", "chair lift"
+]
+
+# Fallback solution when blocked suggestions are detected
+FALLBACK_SOLUTION = {
+    "renovation_suggestion": "Install grab bars and lever-style door handles for improved accessibility",
+    "estimated_cost_usd": 350,
+    "build_prompt": "Brushed nickel grab bars (24 inches long, 1.5 inch diameter) mounted on the wall at 36 inches height, modern lever-style door handle replacing round knob, photorealistic, 8k quality, matching existing fixtures",
+    "mask_prompt": "the wall area near the door or entry point",
+    "image_gen_prompt": "Brushed nickel grab bars (24 inches long, 1.5 inch diameter) mounted on the wall at 36 inches height, modern lever-style door handle replacing round knob, photorealistic, 8k quality, matching existing fixtures"
+}
+
+
+def validate_feasibility(audit_data: dict) -> dict:
+    """Validates renovation suggestions for feasibility and blocks infeasible solutions.
+    
+    Checks for banned terms (elevators, lifts, etc.) and replaces them with
+    simpler, more feasible solutions.
+    
+    Args:
+        audit_data: The parsed audit data dictionary
+        
+    Returns:
+        The validated (and possibly modified) audit data
+    """
+    suggestion = audit_data.get("renovation_suggestion", "").lower()
+    
+    # Check for blocked terms
+    for blocked_term in FEASIBILITY_BLOCKLIST:
+        if blocked_term in suggestion:
+            print(f"[FEASIBILITY] Blocked infeasible suggestion containing '{blocked_term}'")
+            print(f"[FEASIBILITY] Original suggestion: {audit_data.get('renovation_suggestion', '')}")
+            
+            # Replace with fallback solution
+            audit_data["renovation_suggestion"] = FALLBACK_SOLUTION["renovation_suggestion"]
+            audit_data["estimated_cost_usd"] = FALLBACK_SOLUTION["estimated_cost_usd"]
+            audit_data["build_prompt"] = FALLBACK_SOLUTION["build_prompt"]
+            audit_data["mask_prompt"] = FALLBACK_SOLUTION["mask_prompt"]
+            audit_data["image_gen_prompt"] = FALLBACK_SOLUTION["image_gen_prompt"]
+            # Clear structural renovation fields since we're using a simple solution
+            audit_data["clear_mask"] = ""
+            audit_data["clear_prompt"] = ""
+            audit_data["build_mask"] = audit_data.get("mask_prompt", "the accessible area")
+            
+            print(f"[FEASIBILITY] Using fallback solution: {FALLBACK_SOLUTION['renovation_suggestion']}")
+            break
+    
+    # Ensure railings are described as open (not fences)
+    for key in ["build_prompt", "image_gen_prompt"]:
+        if key in audit_data and audit_data[key]:
+            prompt = audit_data[key]
+            # Replace fence-like terms with open handrail terminology
+            if "fence" in prompt.lower() or "cage" in prompt.lower() or "enclosure" in prompt.lower():
+                prompt = prompt.replace("fence", "open handrail")
+                prompt = prompt.replace("Fence", "Open handrail")
+                prompt = prompt.replace("cage", "open safety rail")
+                prompt = prompt.replace("Cage", "Open safety rail")
+                prompt = prompt.replace("enclosure", "open handrail system")
+                prompt = prompt.replace("Enclosure", "Open handrail system")
+                audit_data[key] = prompt
+                print(f"[FEASIBILITY] Fixed fence/cage terminology in {key}")
+    
+    return audit_data
+
+
 # Accessibility Score Weights (0-100 scale, where higher = more accessible after renovation)
 ACCESSIBILITY_SCORE_WEIGHTS = {
     "cost": {
@@ -377,6 +448,9 @@ def audit_room(image_url: str, wheelchair_accessible: bool = False) -> Dict[str,
         
         audit_data = _validate_audit_response(audit_data)
         
+        # Validate feasibility and block infeasible suggestions (elevators, lifts, etc.)
+        audit_data = validate_feasibility(audit_data)
+        
         # Adjust cost if it seems unrealistic (cap at reasonable maximum for residential)
         cost = audit_data.get("estimated_cost_usd", 0)
         if cost > 50000:
@@ -395,9 +469,6 @@ def audit_room(image_url: str, wheelchair_accessible: bool = False) -> Dict[str,
             else:
                 # For other cases, cap at $30k and reduce by 30%
                 audit_data["estimated_cost_usd"] = min(int(cost * 0.7), 30000)
-        
-        # Calculate accessibility score
-        audit_data["accessibility_score"] = calculate_accessibility_score(audit_data)
         
         return audit_data
     except json.JSONDecodeError as e:

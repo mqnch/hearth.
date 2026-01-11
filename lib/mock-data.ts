@@ -3,6 +3,10 @@ export interface PropertyAnalysis {
   address: string;
   originalPrice: number;
   renovationCost: number;
+  renovationCostRange?: {
+    low: number;
+    high: number;
+  };
   accessibilityScore: {
     current: number; // 0-100
     potential: number; // 0-100

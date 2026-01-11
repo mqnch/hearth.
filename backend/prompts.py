@@ -17,9 +17,15 @@ Before identifying barriers, carefully analyze:
 - SPACE CONSTRAINTS: How much room is available for modifications?
 - ACCESS POINTS: What pathways, driveways, or doors must remain unobstructed?
 
-STEP 2 - BARRIER IDENTIFICATION:
-Identify the single most critical accessibility barrier (e.g., stairs, narrow doorway, high tub, bathroom vanity).
-Be SPECIFIC about the exact location and nature of the barrier.
+STEP 2 - BARRIER IDENTIFICATION (PRIORITY ORDER):
+Identify the single most critical accessibility barrier, using this PRIORITY ORDER:
+1. HIGHEST PRIORITY: Narrow doorways (doorways less than 32 inches wide) - prioritize making doorways wider
+2. HIGH PRIORITY: Slippery flooring surfaces (polished tile, smooth hardwood, glossy surfaces) - prioritize replacing slippery floors
+3. HIGH PRIORITY: Small step-ups or thresholds (height differences of 1-4 inches) - prioritize adding small ramps
+4. MEDIUM PRIORITY: Bathroom barriers (high tubs, narrow vanities, lack of grab bars)
+5. LOWER PRIORITY: Stair handrails (only if no higher priority barriers exist)
+
+Be SPECIFIC about the exact location and nature of the barrier. DO NOT prioritize stair handrail modifications when doorways, flooring, or small steps are present.
 
 STEP 3 - FEASIBLE SOLUTION SELECTION:
 
@@ -31,16 +37,22 @@ STEP 3 - FEASIBLE SOLUTION SELECTION:
 - NO solutions that block or restrict existing access points
 
 *** PREFERRED SOLUTIONS (choose from this list in order of preference) ***
+PRIORITY SOLUTIONS (prefer these when applicable):
+- Door widening: Widen narrow doorways to minimum 32 inches (preferably 36 inches) clear width
+- Floor replacement: Replace slippery floors with non-slip flooring (textured tile, non-slip vinyl, rubber flooring, low-pile carpet)
+- Small ramps: Add portable or built-in threshold ramps for step-ups of 1-4 inches
+
+OTHER SOLUTIONS (when priority solutions don't apply):
 1. SIMPLE ADDITIONS ($50-500): Grab bars, lever door handles, non-slip mats, contrast tape, signage
 2. MINOR MODIFICATIONS ($500-2000): Threshold ramps (small, portable), door widening, sink height adjustment, toilet risers
-3. MODERATE CHANGES ($2000-5000): Walk-in shower conversion, cabinet removal for knee clearance, handrail installation along walls
+3. MODERATE CHANGES ($2000-5000): Walk-in shower conversion, cabinet removal for knee clearance, handrail installation along walls (ONLY when no doorways/floors/steps need attention)
 4. ONLY IF ABSOLUTELY NECESSARY ($5000+): Exterior ramp (MUST have clear space, NOT blocking driveway)
 
 STEP 4 - DETAILED DESCRIPTION REQUIREMENTS:
 Return a strict JSON object with these keys:
 - barrier_detected: string (DETAILED description including EXACT location, e.g., "Standard bathtub with high sides (24 inches) in the main floor bathroom, located against the left wall")
 - renovation_suggestion: string (SPECIFIC fix from preferred solutions above, e.g., "Remove bathtub and install curbless walk-in shower with grab bars on three walls and fold-down bench seat")
-- estimated_cost_usd: integer (Conservative pricing: grab bars $50-200, threshold ramps $100-300, door widening $800-1500, walk-in shower $3000-6000)
+- cost_estimate: string (A range of estimated costs in USD, e.g., "$1,500 - $3,000". Conservative pricing: grab bars $50-200, threshold ramps $100-300, door widening $800-1500, floor replacement $2000-5000 per room, walk-in shower $3000-6000)
 - compliance_note: string (MUST reference specific AODA standards, e.g., 'AODA Section 4.3.2: Grab bar height 33-36 inches above floor, must support 250 lbs')
 - clear_mask: string (For renovations requiring removal: describe EXACTLY what to remove with precise location, e.g., "the white porcelain bathtub with chrome fixtures against the left bathroom wall". For simple additions, use empty string "")
 - clear_prompt: string (For removals: describe replacement, e.g., "matching tile floor extending to the wall, seamless with existing flooring". For simple additions, use empty string "")
@@ -50,10 +62,12 @@ Return a strict JSON object with these keys:
 - image_gen_prompt: string (Same as build_prompt for structural, otherwise detailed prompt for additions - ALWAYS specify exact positions, materials, and dimensions)
 
 CRITICAL REMINDERS:
+- PRIORITIZE doorways, flooring, and small steps over stair modifications
 - Handrails must be OPEN (not fences or cages) - people must be able to pass by them
 - Ramps must NOT block driveways or pathways - ensure clear space on all sides
-- All measurements must be AODA compliant
-- Prefer simple solutions over complex structural changes"""
+- All measurements must be AODA compliant (doorways minimum 32" clear width, ramp slope max 1:12)
+- Prefer simple solutions over complex structural changes
+- Do NOT suggest stair handrail modifications when doorways need widening, floors need replacement, or small steps need ramps"""
 
 
 def get_audit_prompt(wheelchair_accessible: bool = False) -> str:

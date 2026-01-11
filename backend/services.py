@@ -53,6 +53,7 @@ FEASIBILITY_BLOCKLIST = [
 FALLBACK_SOLUTION = {
     "renovation_suggestion": "Install grab bars and lever-style door handles for improved accessibility",
     "estimated_cost_usd": 350,
+    "cost_estimate": "$250 - $450",
     "build_prompt": "Brushed nickel grab bars (24 inches long, 1.5 inch diameter) mounted on the wall at 36 inches height, modern lever-style door handle replacing round knob, photorealistic, 8k quality, matching existing fixtures",
     "mask_prompt": "the wall area near the door or entry point",
     "image_gen_prompt": "Brushed nickel grab bars (24 inches long, 1.5 inch diameter) mounted on the wall at 36 inches height, modern lever-style door handle replacing round knob, photorealistic, 8k quality, matching existing fixtures"
@@ -81,6 +82,7 @@ def validate_feasibility(audit_data: dict) -> dict:
             
             # Replace with fallback solution
             audit_data["renovation_suggestion"] = FALLBACK_SOLUTION["renovation_suggestion"]
+            audit_data["cost_estimate"] = f"${FALLBACK_SOLUTION['estimated_cost_usd'] - 100} - ${FALLBACK_SOLUTION['estimated_cost_usd'] + 100}"
             audit_data["estimated_cost_usd"] = FALLBACK_SOLUTION["estimated_cost_usd"]
             audit_data["build_prompt"] = FALLBACK_SOLUTION["build_prompt"]
             audit_data["mask_prompt"] = FALLBACK_SOLUTION["mask_prompt"]
@@ -201,7 +203,7 @@ def _validate_audit_response(audit_data: Dict[str, Any]) -> Dict[str, Any]:
     required_fields = [
         "barrier_detected",
         "renovation_suggestion",
-        "estimated_cost_usd",
+        "cost_estimate",
         "compliance_note",
         "build_mask",
         "build_prompt",
@@ -223,13 +225,23 @@ def _validate_audit_response(audit_data: Dict[str, Any]) -> Dict[str, Any]:
     audit_data.setdefault("problem_description", "")
     audit_data.setdefault("solution_description", "")
     
-    # Validate cost is a number
-    if not isinstance(audit_data.get("estimated_cost_usd"), (int, float)):
-        raise ValueError("estimated_cost_usd must be a number")
-    
-    # Ensure cost is non-negative
-    if audit_data["estimated_cost_usd"] < 0:
+    # Set a default estimated_cost_usd (int) for backward compatibility and internal logic
+    # Parse from cost_estimate string (e.g. "$1,000 - $2,000" -> 1500)
+    cost_str = audit_data.get("cost_estimate", "$0")
+    import re
+    matches = re.findall(r'\$?([\d,]+)', cost_str)
+    if matches:
+        costs = [float(m.replace(',', '')) for m in matches]
+        avg_cost = sum(costs) / len(costs)
+        audit_data["estimated_cost_usd"] = int(avg_cost)
+    else:
         audit_data["estimated_cost_usd"] = 0
+    
+    # Add alias fields for frontend compatibility
+    if "barrier_detected" in audit_data:
+        audit_data["barrier"] = audit_data["barrier_detected"]
+    if "compliance_note" in audit_data:
+        audit_data["compliance_notes"] = audit_data["compliance_note"]
     
     return audit_data
 
@@ -457,18 +469,23 @@ def audit_room(image_url: str, wheelchair_accessible: bool = False) -> Dict[str,
             # If cost exceeds $50k, it's likely inflated - reduce by 30-50% or cap
             # This handles cases where AI overestimates for simple renovations
             renovation_lower = audit_data.get("renovation_suggestion", "").lower()
+            new_cost = cost
             if any(keyword in renovation_lower for keyword in ["grab bar", "handle", "signage", "lever"]):
                 # Simple additions should be under $500
-                audit_data["estimated_cost_usd"] = min(cost, 500)
+                new_cost = min(cost, 500)
             elif any(keyword in renovation_lower for keyword in ["ramp", "wider doorway", "threshold"]):
                 # Moderate changes should be under $5000
-                audit_data["estimated_cost_usd"] = min(cost, 5000)
+                new_cost = min(cost, 5000)
             elif any(keyword in renovation_lower for keyword in ["lift", "elevator", "platform"]):
                 # Major changes like lifts can be $15-20k, cap at $25k
-                audit_data["estimated_cost_usd"] = min(cost, 25000)
+                new_cost = min(cost, 25000)
             else:
                 # For other cases, cap at $30k and reduce by 30%
-                audit_data["estimated_cost_usd"] = min(int(cost * 0.7), 30000)
+                new_cost = min(int(cost * 0.7), 30000)
+            
+            audit_data["estimated_cost_usd"] = new_cost
+            # Update cost_estimate string to match new capped cost
+            audit_data["cost_estimate"] = f"${int(new_cost * 0.8):,} - ${int(new_cost * 1.2):,}"
         
         return audit_data
     except json.JSONDecodeError as e:

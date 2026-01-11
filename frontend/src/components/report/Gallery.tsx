@@ -71,12 +71,6 @@ export default function Gallery({
                       <div className="animate-spin rounded-[1px] h-6 w-6 border-b-2 border-white"></div>
                     </div>
                   )}
-                  {/* Generated indicator */}
-                  {renovatedImages[index] && !generatingImages.has(index) && (
-                    <div className="absolute top-1 right-1 bg-[#D2691E] text-white text-xs px-1.5 py-0.5 rounded-[1px]">
-                      ✓
-                    </div>
-                  )}
                 </>
               ) : (
                 <div className="w-full h-full bg-gray-200 flex items-center justify-center">

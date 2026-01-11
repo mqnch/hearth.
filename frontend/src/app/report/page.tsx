@@ -188,7 +188,16 @@ export default function ReportPage() {
           };
 
           // Store in localStorage (without renovated_image fields to avoid quota issues)
-          localStorage.setItem("listingAnalysisResult", JSON.stringify(listingResult));
+          // Strip the large base64 strings before storing
+          const strippedResults = listingResult.results.map(r => {
+            const { renovated_image, ...rest } = r;
+            return rest;
+          });
+          const resultToStore = {
+            ...listingResult,
+            results: strippedResults
+          };
+          localStorage.setItem("listingAnalysisResult", JSON.stringify(resultToStore));
           
           // Map renovated images to gallery indices and store them
           // Create the same mapping logic as the normal report view uses
@@ -325,18 +334,27 @@ export default function ReportPage() {
         }
 
         // Calculate total renovation cost from images with problems
-        const totalRenovationCost = imagesWithProblems.reduce((sum, { image: imageResult }) => {
+        let totalRenovationLow = 0;
+        let totalRenovationHigh = 0;
+
+        imagesWithProblems.forEach(({ image: imageResult }) => {
           if (imageResult.audit && imageResult.audit.cost_estimate) {
-            // Parse cost estimate (e.g., "$1,500 - $3,000" -> average)
+            // Parse cost estimate (e.g., "$1,500 - $3,000")
             const match = imageResult.audit.cost_estimate.match(/\$?([\d,]+)/g);
             if (match) {
               const costs = match.map(c => parseFloat(c.replace(/[$,]/g, '')));
-              const avgCost = costs.reduce((a, b) => a + b, 0) / costs.length;
-              return sum + avgCost;
+              if (costs.length === 2) {
+                totalRenovationLow += costs[0];
+                totalRenovationHigh += costs[1];
+              } else if (costs.length === 1) {
+                totalRenovationLow += costs[0];
+                totalRenovationHigh += costs[0];
+              }
             }
           }
-          return sum;
-        }, 0);
+        });
+
+        const totalRenovationCost = (totalRenovationLow + totalRenovationHigh) / 2;
 
         // Generate random accessibility scores
         const randomCurrent = Math.floor(Math.random() * (40 - 35 + 1)) + 35; // 20-50
@@ -348,6 +366,10 @@ export default function ReportPage() {
           address: result.property_info.address || "Property Analysis",
           originalPrice: parseFloat(result.property_info.price?.replace(/[$,]/g, '') || '0'),
           renovationCost: totalRenovationCost,
+          renovationCostRange: {
+            low: totalRenovationLow,
+            high: totalRenovationHigh,
+          },
           accessibilityScore: {
             current: randomCurrent,
             potential: randomPotential,
@@ -580,22 +602,11 @@ export default function ReportPage() {
       const result = await response.json();
 
       if (result.success && result.renovated_image) {
-        // Cache the generated image
-        const updatedImages = {
-          ...renovatedImages,
-          [imageIndex]: result.renovated_image,
-        };
-        setRenovatedImages(updatedImages);
-
-        // Persist to localStorage
-        if (listingResult?.property_info?.address) {
-          try {
-            const persistedImagesKey = `renovatedImages_${listingResult.property_info.address}`;
-            localStorage.setItem(persistedImagesKey, JSON.stringify(updatedImages));
-          } catch (e) {
-            console.warn('Failed to persist images to localStorage:', e);
-          }
-        }
+        // Update state with the generated image
+        setRenovatedImages(prev => ({
+          ...prev,
+          [imageIndex]: result.renovated_image
+        }));
 
         // Update the analysis images with the renovated version
         setAnalysis(prev => ({
@@ -607,7 +618,7 @@ export default function ReportPage() {
           ),
         }));
         
-        console.log(`Successfully generated and cached image for index ${imageIndex}`);
+        console.log(`Successfully generated image for index ${imageIndex}`);
       } else {
         const errorMsg = result.error || "Unknown error";
         console.error("Image generation failed:", errorMsg);

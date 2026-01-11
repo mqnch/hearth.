@@ -348,33 +348,79 @@ export default function PropertySidebar({ analysis, propertyInfo }: PropertySide
           Cost Breakdown
         </h2>
         
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-[#B8860B]">
-              Original Cost:
+        <div className="space-y-6">
+          <div className="flex flex-col">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#B8860B] mb-1">
+              Original Cost
             </span>
-            <span className="text-xl font-bold text-[#5C4033] font-mono">
-              ${analysis.originalPrice.toLocaleString()}
-            </span>
+            <div className="flex justify-between items-baseline">
+              <div className="h-px flex-1 bg-[#F5E6D3] mr-4 opacity-50" />
+              <span className="text-xl font-bold text-[#5C4033] font-mono">
+                ${analysis.originalPrice.toLocaleString()}
+              </span>
+            </div>
           </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-[#B8860B]">
-              Estimated Renovation:
+          <div className="flex flex-col">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#B8860B] mb-1">
+              Estimated Renovation
             </span>
-            <span className="text-xl font-bold text-[#D2691E] font-mono">
-              +${analysis.renovationCost.toLocaleString()}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              {analysis.renovationCostRange ? (
+                <>
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[10px] font-bold text-[#D4A574] uppercase">Low end</span>
+                    <span className="text-xl font-bold text-[#D2691E] font-mono">
+                      +${analysis.renovationCostRange.low.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[10px] font-bold text-[#D4A574] uppercase">High end</span>
+                    <span className="text-xl font-bold text-[#D2691E] font-mono">
+                      +${analysis.renovationCostRange.high.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between w-full">
+                  <div className="h-px flex-1 bg-[#F5E6D3] mr-4 opacity-50" />
+                  <span className="text-xl font-bold text-[#D2691E] font-mono">
+                    +${analysis.renovationCost.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="border-t border-[#D4A574] pt-3 mt-3">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-[#5C4033]">
-                Total Cost:
-              </span>
-              <span className="text-2xl font-bold text-[#5C4033] font-mono">
-                ${totalCost.toLocaleString()}
-              </span>
+          <div className="pt-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#5C4033] mb-2 block">
+              Total Projected Cost
+            </span>
+            <div className="bg-[#FFF8E7] p-4 rounded-[1px] border-2 border-[#D4A574] shadow-inner relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-1 opacity-10">
+                <Home size={40} className="text-[#5C4033]" />
+              </div>
+              <div className="flex flex-col items-end gap-1 relative z-10">
+                {analysis.renovationCostRange ? (
+                  <>
+                    <span className="text-2xl font-black text-[#5C4033] font-mono">
+                      ${(analysis.originalPrice + analysis.renovationCostRange.low).toLocaleString()}
+                    </span>
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="h-px flex-1 bg-[#D4A574] opacity-30" />
+                      <span className="text-[10px] font-bold text-[#D4A574] uppercase tracking-widest">to</span>
+                      <div className="h-px flex-1 bg-[#D4A574] opacity-30" />
+                    </div>
+                    <span className="text-2xl font-black text-[#5C4033] font-mono">
+                      ${(analysis.originalPrice + analysis.renovationCostRange.high).toLocaleString()}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-3xl font-black text-[#5C4033] font-mono">
+                    ${totalCost.toLocaleString()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -44,6 +44,32 @@ image_generation_cache: dict[str, dict] = {}
 #   }
 # }
 JOBS: dict[str, dict] = {}
+
+def get_cache_key(image_url: str, audit_data: dict, wheelchair_accessible: bool) -> str:
+    """Calculates a unique cache key for a renovation request."""
+    image_gen_prompt = audit_data.get("image_gen_prompt", "")
+    mask_prompt = audit_data.get("mask_prompt", "")
+    clear_mask = audit_data.get("clear_mask", "")
+    clear_prompt = audit_data.get("clear_prompt", "")
+    build_mask = audit_data.get("build_mask", "")
+    build_prompt = audit_data.get("build_prompt", "")
+    
+    is_two_pass = bool(clear_mask and clear_prompt and build_mask and build_prompt)
+    
+    cache_key_data = {
+        "image_url": image_url,
+        "image_gen_prompt": image_gen_prompt,
+        "mask_prompt": mask_prompt,
+        "is_two_pass": is_two_pass,
+        "clear_mask": clear_mask if is_two_pass else "",
+        "clear_prompt": clear_prompt if is_two_pass else "",
+        "build_mask": build_mask if is_two_pass else "",
+        "build_prompt": build_prompt if is_two_pass else "",
+        "wheelchair_accessible": wheelchair_accessible,
+    }
+    return hashlib.sha256(
+        json.dumps(cache_key_data, sort_keys=True).encode('utf-8')
+    ).hexdigest()
  
 # Add CORS middleware to allow frontend origin
 app.add_middleware(
@@ -213,6 +239,17 @@ async def process_listing_job(
                     base64_encoded = base64.b64encode(renovated_image_bytes).decode('utf-8')
                     renovated_image_base64 = f"data:image/jpeg;base64,{base64_encoded}"
                     result["renovated_image"] = renovated_image_base64
+                    
+                    # NEW: Populate the generation cache so follow-up requests are HITs
+                    try:
+                        cache_key = get_cache_key(image_url, audit_data, wheelchair_accessible)
+                        image_generation_cache[cache_key] = {
+                            "renovated_image": renovated_image_base64,
+                            "original_url": image_url
+                        }
+                        print(f"Populated cache for: {image_url[:50]}... (key: {cache_key[:8]})")
+                    except Exception as cache_err:
+                        print(f"Error populating cache: {str(cache_err)}")
                 
                 # Update generation progress
                 JOBS[job_id]["generation_progress"] = int((idx / total_images) * 100)
@@ -305,6 +342,20 @@ async def process_single_image_job(
                 base64_encoded = base64.b64encode(renovated_image_bytes).decode('utf-8')
                 renovated_image_base64 = f"data:image/jpeg;base64,{base64_encoded}"
                 result["renovated_image"] = renovated_image_base64
+                
+                # Populate the generation cache so follow-up requests are HITs
+                try:
+                    cache_key = get_cache_key(image_url, audit_data, wheelchair_accessible)
+                    image_generation_cache[cache_key] = {
+                        "renovated_image": renovated_image_base64,
+                        "original_url": image_url
+                    }
+                    print(f"Populated cache for single image: {image_url[:50]}... (key: {cache_key[:8]})")
+                except Exception as cache_err:
+                    print(f"Error populating cache: {str(cache_err)}")
+        
+        # Add to results list again to ensure it has the image
+        JOBS[job_id]["results"] = [result]
         
         # Completion
         JOBS[job_id]["status"] = "completed"
@@ -572,26 +623,13 @@ async def generate_renovation_endpoint(request: GenerateRenovationRequest):
                 "renovated_image": None
             }
 
-        # Create cache key from image URL and all prompt parameters
-        cache_key_data = {
-            "image_url": request.image_url,
-            "image_gen_prompt": image_gen_prompt,
-            "mask_prompt": mask_prompt,
-            "is_two_pass": is_two_pass,
-            "clear_mask": clear_mask if is_two_pass else "",
-            "clear_prompt": clear_prompt if is_two_pass else "",
-            "build_mask": build_mask if is_two_pass else "",
-            "build_prompt": build_prompt if is_two_pass else "",
-            "wheelchair_accessible": request.wheelchair_accessible,
-        }
-        cache_key = hashlib.sha256(
-            json.dumps(cache_key_data, sort_keys=True).encode('utf-8')
-        ).hexdigest()
+        # Create cache key using helper function
+        cache_key = get_cache_key(request.image_url, request.audit_data, request.wheelchair_accessible)
 
         # Check cache first
         if cache_key in image_generation_cache:
             cached_result = image_generation_cache[cache_key]
-            print(f"Cache HIT for: {request.image_url[:50]}...")
+            print(f"Cache HIT for: {request.image_url[:50]}... (key: {cache_key[:8]})")
             return {
                 "success": True,
                 "renovated_image": cached_result["renovated_image"],
@@ -599,7 +637,7 @@ async def generate_renovation_endpoint(request: GenerateRenovationRequest):
                 "cached": True
             }
 
-        print(f"Cache MISS - Generating renovation for: {request.image_url}")
+        print(f"Cache MISS - Generating renovation for: {request.image_url[:50]}... (key: {cache_key[:8]})")
 
         # Generate the renovation image
         renovated_image_bytes = generate_renovation(

@@ -13,7 +13,7 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center justify-center gap-4 text-center sm:flex-row sm:justify-between">
           <p className="text-base text-[#B8860B]">
-            © {new Date().getFullYear()} ForeverHome. All rights reserved.
+            © {new Date().getFullYear()} hearth. All rights reserved.
           </p>
           <div className="flex gap-6">
             <a

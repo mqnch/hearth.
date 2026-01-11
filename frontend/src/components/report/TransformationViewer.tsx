@@ -52,7 +52,7 @@ export default function TransformationViewer({
       </div>
 
       {/* Before & After Comparison Slider */}
-      <div className="relative w-full h-[400px] rounded-[1px] overflow-hidden border-4 border-[#D4A574]">
+      <div className="relative w-full aspect-[3/2] rounded-[1px] overflow-hidden border-4 border-[#D4A574]">
         {beforeImage ? (
           afterImage ? (
             // Both images available - show slider
